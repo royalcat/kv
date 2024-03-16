@@ -7,14 +7,15 @@ import (
 	"github.com/dgraph-io/badger/v4"
 )
 
-func NewBadgerKV[K Bytes, V any](dir string, codec Codec) (Store[K, V], error) {
+func NewBadgerKV[K Bytes, V any](dir string, opts ...Option) (Store[K, V], error) {
 	db, err := badger.Open(badger.DefaultOptions(dir))
 	if err != nil {
 		return nil, err
 	}
+
 	return &store[K, V]{badgerStore: badgerStore{
-		db:    db,
-		codec: codec,
+		db:      db,
+		options: getOptions(opts...),
 	}}, nil
 }
 
@@ -85,14 +86,14 @@ func (s *store[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorO
 	return err
 }
 
-func NewBadgerKVBytes[K, V Bytes](dir string, codec Codec) (Store[K, V], error) {
+func NewBadgerKVBytes[K, V Bytes](dir string, opts ...Option) (Store[K, V], error) {
 	db, err := badger.Open(badger.DefaultOptions(dir))
 	if err != nil {
 		return nil, err
 	}
 	return &storeBytes[K, V]{badgerStore: badgerStore{
-		db:    db,
-		codec: codec,
+		db:      db,
+		options: getOptions(opts...),
 	}}, nil
 }
 
@@ -154,14 +155,14 @@ func (s *storeBytes[K, V]) RangeWithOptions(ctx context.Context, opt badger.Iter
 	})
 }
 
-func NewBadgerKVMarhsler[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](dir string, codec Codec) (Store[K, V], error) {
+func NewBadgerKVMarhsler[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](dir string, opts ...Option) (Store[K, V], error) {
 	db, err := badger.Open(badger.DefaultOptions(dir))
 	if err != nil {
 		return nil, err
 	}
 	return &storeInterface[K, V, KP]{badgerStore: badgerStore{
-		db:    db,
-		codec: codec,
+		db:      db,
+		options: getOptions(opts...),
 	}}, nil
 }
 
@@ -271,8 +272,8 @@ func prefixOptions(prefix []byte) badger.IteratorOptions {
 }
 
 type badgerStore struct {
-	db    *badger.DB
-	codec Codec
+	db *badger.DB
+	options
 }
 
 func (s *badgerStore) Close(ctx context.Context) error {

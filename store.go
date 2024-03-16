@@ -5,27 +5,6 @@ import (
 	"encoding"
 )
 
-type Bytes interface {
-	~[]byte | ~string
-}
-
-type Pair[K, V any] struct {
-	Key   K
-	Value V
-}
-
-type Binary interface {
-	encoding.BinaryMarshaler
-	encoding.BinaryUnmarshaler
-}
-
-type binaryPointer[T any] interface {
-	*T
-	Binary
-}
-
-type Iter[K, V any] func(k K, v V) bool
-
 type Store[K any, V any] interface {
 	// Set stores the given value for the given key.
 	// The implementation automatically marshalls the value.
@@ -66,3 +45,19 @@ type Store[K any, V any] interface {
 	Range(ctx context.Context, iter Iter[K, V]) error
 	RangeWithPrefix(ctx context.Context, k K, iter Iter[K, V]) error
 }
+
+type Bytes interface {
+	~[]byte | ~string
+}
+
+type Binary interface {
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+}
+
+type binaryPointer[T any] interface {
+	*T
+	Binary
+}
+
+type Iter[K, V any] func(k K, v V) bool
