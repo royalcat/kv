@@ -1,1 +1,1 @@
-# Experimental KV interface with iterators
+# KV interface
