@@ -55,9 +55,4 @@ type Binary interface {
 	encoding.BinaryUnmarshaler
 }
 
-type binaryPointer[T any] interface {
-	*T
-	Binary
-}
-
 type Iter[K, V any] func(k K, v V) bool

@@ -11,7 +11,7 @@ var defaultOptions = options{
 }
 
 func getOptions(opts ...Option) options {
-	o := options{}
+	o := defaultOptions
 	for _, opt := range opts {
 		o = opt(o)
 	}
