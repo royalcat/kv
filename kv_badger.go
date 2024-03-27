@@ -271,6 +271,10 @@ func prefixOptions(prefix []byte) badger.IteratorOptions {
 	}
 }
 
+type BadgerStore interface {
+	BadgerDB() *badger.DB
+}
+
 type badgerStore struct {
 	db *badger.DB
 	options
@@ -297,4 +301,8 @@ func (s *badgerStore) rawRange(_ context.Context, opt badger.IteratorOptions, it
 
 		return nil
 	})
+}
+
+func (s *badgerStore) BadgerDB() *badger.DB {
+	return s.db
 }

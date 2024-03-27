@@ -6,9 +6,10 @@ import (
 	"sync"
 )
 
-func NewMemoryKV[K Bytes, V any]() {
-	return
-
+func NewMemoryKV[K Bytes, V any]() Store[K, V] {
+	return &memoryKV[K, V]{
+		data: map[string]V{},
+	}
 }
 
 type memoryKV[K Bytes, V any] struct {
