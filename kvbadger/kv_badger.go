@@ -1,31 +1,44 @@
-package kv
+package kvbadger
 
 import (
 	"context"
 	"encoding"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/royalcat/kv"
 )
 
-func NewBadgerKV[K Bytes, V any](dir string, opts ...Option) (Store[K, V], error) {
-	db, err := badger.Open(badger.DefaultOptions(dir))
+type Options struct {
+	kv.Options
+	BadgerOptions badger.Options
+}
+
+func DefaultOptions(dir string) Options {
+	return Options{
+		Options:       kv.DefaultOptions,
+		BadgerOptions: badger.DefaultOptions(dir),
+	}
+}
+
+func NewBadgerKV[K kv.Bytes, V any](opts Options) (kv.Store[K, V], error) {
+	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	return &store[K, V]{badgerStore: badgerStore{
-		db:      db,
-		options: getOptions(opts...),
+		DB:      db,
+		Options: opts,
 	}}, nil
 }
 
-type store[K Bytes, V any] struct {
+type store[K kv.Bytes, V any] struct {
 	badgerStore
 }
 
 func (s *store[K, V]) Set(ctx context.Context, k K, v V) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		data, err := s.codec.Marshal(v)
+	return s.DB.Update(func(txn *badger.Txn) error {
+		data, err := s.Codec.Marshal(v)
 		if err != nil {
 			return err
 		}
@@ -34,7 +47,7 @@ func (s *store[K, V]) Set(ctx context.Context, k K, v V) error {
 }
 
 func (s *store[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error) {
-	err = s.db.View(func(txn *badger.Txn) error {
+	err = s.DB.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(k))
 		if err != nil {
 			if err == badger.ErrKeyNotFound {
@@ -47,7 +60,7 @@ func (s *store[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error)
 		if err != nil {
 			return err
 		}
-		err = s.codec.Unmarshal(data, &v)
+		err = s.Codec.Unmarshal(data, &v)
 		if err != nil {
 			return err
 		}
@@ -58,24 +71,24 @@ func (s *store[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error)
 }
 
 func (s *store[K, V]) Delete(ctx context.Context, k K) error {
-	return s.db.Update(func(txn *badger.Txn) error {
+	return s.DB.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(k))
 	})
 }
 
-func (s *store[K, V]) RangeWithPrefix(ctx context.Context, k K, iter Iter[K, V]) error {
+func (s *store[K, V]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
 	return s.RangeWithOptions(ctx, prefixOptions([]byte(k)), iter)
 }
 
-func (s *store[K, V]) Range(ctx context.Context, iter Iter[K, V]) error {
+func (s *store[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
 	return s.RangeWithOptions(ctx, badger.DefaultIteratorOptions, iter)
 }
 
-func (s *store[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter Iter[K, V]) error {
+func (s *store[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
 	var err error
 	err = s.rawRange(ctx, opt, func(k, val []byte) bool {
 		var v V
-		err = s.codec.Unmarshal(val, &v)
+		err = s.Codec.Unmarshal(val, &v)
 		if err != nil {
 			return false
 		}
@@ -86,24 +99,24 @@ func (s *store[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorO
 	return err
 }
 
-func NewBadgerKVBytes[K, V Bytes](dir string, opts ...Option) (Store[K, V], error) {
-	db, err := badger.Open(badger.DefaultOptions(dir))
+func NewBadgerKVBytes[K, V kv.Bytes](opts Options) (kv.Store[K, V], error) {
+	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err
 	}
 	return &storeBytes[K, V]{badgerStore: badgerStore{
-		db:      db,
-		options: getOptions(opts...),
+		DB:      db,
+		Options: opts,
 	}}, nil
 }
 
-type storeBytes[K, V Bytes] struct {
+type storeBytes[K, V kv.Bytes] struct {
 	badgerStore
 }
 
 func (s *storeBytes[K, V]) Set(ctx context.Context, k K, v V) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		data, err := s.codec.Marshal(v)
+	return s.DB.Update(func(txn *badger.Txn) error {
+		data, err := s.Codec.Marshal(v)
 		if err != nil {
 			return err
 		}
@@ -112,7 +125,7 @@ func (s *storeBytes[K, V]) Set(ctx context.Context, k K, v V) error {
 }
 
 func (s *storeBytes[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error) {
-	err = s.db.View(func(txn *badger.Txn) error {
+	err = s.DB.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(k))
 		if err != nil {
 			if err == badger.ErrKeyNotFound {
@@ -125,7 +138,7 @@ func (s *storeBytes[K, V]) Get(ctx context.Context, k K) (v V, found bool, err e
 		if err != nil {
 			return err
 		}
-		err = s.codec.Unmarshal(data, v)
+		err = s.Codec.Unmarshal(data, v)
 		if err != nil {
 			return err
 		}
@@ -136,33 +149,33 @@ func (s *storeBytes[K, V]) Get(ctx context.Context, k K) (v V, found bool, err e
 }
 
 func (s *storeBytes[K, V]) Delete(ctx context.Context, k K) error {
-	return s.db.Update(func(txn *badger.Txn) error {
+	return s.DB.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(k))
 	})
 }
 
-func (s *storeBytes[K, V]) RangeWithPrefix(ctx context.Context, k K, iter Iter[K, V]) error {
+func (s *storeBytes[K, V]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
 	return s.RangeWithOptions(ctx, prefixOptions([]byte(k)), iter)
 }
 
-func (s *storeBytes[K, V]) Range(ctx context.Context, iter Iter[K, V]) error {
+func (s *storeBytes[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
 	return s.RangeWithOptions(ctx, badger.DefaultIteratorOptions, iter)
 }
 
-func (s *storeBytes[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter Iter[K, V]) error {
+func (s *storeBytes[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
 	return s.rawRange(ctx, opt, func(k, v []byte) bool {
 		return iter(K(k), V(v))
 	})
 }
 
-func NewBadgerKVMarhsler[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](dir string, opts ...Option) (Store[K, V], error) {
-	db, err := badger.Open(badger.DefaultOptions(dir))
+func NewBadgerKVMarhsler[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](opts Options) (kv.Store[K, V], error) {
+	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err
 	}
 	return &storeInterface[K, V, KP]{badgerStore: badgerStore{
-		db:      db,
-		options: getOptions(opts...),
+		DB:      db,
+		Options: opts,
 	}}, nil
 }
 
@@ -176,8 +189,8 @@ func (s *storeInterface[K, V, KP]) Set(ctx context.Context, k K, v V) error {
 		return err
 	}
 
-	return s.db.Update(func(txn *badger.Txn) error {
-		data, err := s.codec.Marshal(v)
+	return s.DB.Update(func(txn *badger.Txn) error {
+		data, err := s.Codec.Marshal(v)
 		if err != nil {
 			return err
 		}
@@ -191,7 +204,7 @@ func (s *storeInterface[K, V, KP]) Get(ctx context.Context, k K) (v V, found boo
 		return v, found, err
 	}
 
-	err = s.db.View(func(txn *badger.Txn) error {
+	err = s.DB.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(kb)
 		if err != nil {
 			if err == badger.ErrKeyNotFound {
@@ -204,7 +217,7 @@ func (s *storeInterface[K, V, KP]) Get(ctx context.Context, k K) (v V, found boo
 		if err != nil {
 			return err
 		}
-		err = s.codec.Unmarshal(data, &v)
+		err = s.Codec.Unmarshal(data, &v)
 		if err != nil {
 			return err
 		}
@@ -220,12 +233,12 @@ func (s *storeInterface[K, V, KP]) Delete(ctx context.Context, k K) error {
 		return err
 	}
 
-	return s.db.Update(func(txn *badger.Txn) error {
+	return s.DB.Update(func(txn *badger.Txn) error {
 		return txn.Delete(kb)
 	})
 }
 
-func (s *storeInterface[K, V, KP]) RangeWithPrefix(ctx context.Context, k K, iter Iter[K, V]) error {
+func (s *storeInterface[K, V, KP]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
 	p, err := k.MarshalBinary()
 	if err != nil {
 		return err
@@ -234,11 +247,11 @@ func (s *storeInterface[K, V, KP]) RangeWithPrefix(ctx context.Context, k K, ite
 	return s.RangeWithOptions(ctx, prefixOptions([]byte(p)), iter)
 }
 
-func (s *storeInterface[K, V, KP]) Range(ctx context.Context, iter Iter[K, V]) error {
+func (s *storeInterface[K, V, KP]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
 	return s.RangeWithOptions(ctx, badger.DefaultIteratorOptions, iter)
 }
 
-func (s *storeInterface[K, V, KP]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter Iter[K, V]) error {
+func (s *storeInterface[K, V, KP]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
 	var err error
 	err = s.rawRange(ctx, opt, func(key []byte, val []byte) bool {
 		var k K
@@ -249,7 +262,7 @@ func (s *storeInterface[K, V, KP]) RangeWithOptions(ctx context.Context, opt bad
 		}
 
 		var v V
-		err = s.codec.Unmarshal(val, &v)
+		err = s.Codec.Unmarshal(val, &v)
 		if err != nil {
 			return false
 		}
@@ -276,16 +289,16 @@ type BadgerStore interface {
 }
 
 type badgerStore struct {
-	db *badger.DB
-	options
+	DB *badger.DB
+	Options
 }
 
 func (s *badgerStore) Close(ctx context.Context) error {
-	return s.db.Close()
+	return s.DB.Close()
 }
 
-func (s *badgerStore) rawRange(_ context.Context, opt badger.IteratorOptions, iter Iter[[]byte, []byte]) error {
-	return s.db.View(func(txn *badger.Txn) error {
+func (s *badgerStore) rawRange(_ context.Context, opt badger.IteratorOptions, iter kv.Iter[[]byte, []byte]) error {
+	return s.DB.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(opt)
 		defer it.Close()
 
@@ -304,5 +317,5 @@ func (s *badgerStore) rawRange(_ context.Context, opt badger.IteratorOptions, it
 }
 
 func (s *badgerStore) BadgerDB() *badger.DB {
-	return s.db
+	return s.DB
 }

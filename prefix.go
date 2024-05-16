@@ -51,7 +51,7 @@ func (p *prefixBytesStore[K, V]) Set(ctx context.Context, k K, v V) error {
 	return p.store.Set(ctx, k, v)
 }
 
-func PrefixBinary[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](s Store[K, V], prefix K) (Store[K, V], error) {
+func PrefixBinary[K encoding.BinaryMarshaler, V any, KP binaryUnmarshalerDereference[K]](s Store[K, V], prefix K) (Store[K, V], error) {
 	p, err := prefix.MarshalBinary()
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func PrefixBinary[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](s Stor
 	}, nil
 }
 
-type prefixBinaryStore[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]] struct {
+type prefixBinaryStore[K encoding.BinaryMarshaler, V any, KP binaryUnmarshalerDereference[K]] struct {
 	prefix []byte
 	store  Store[K, V]
 }

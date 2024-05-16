@@ -2,12 +2,12 @@ package kv
 
 import "encoding"
 
-type binaryPointer[T any] interface {
+type binaryUnmarshalerDereference[T any] interface {
 	*T
-	Binary
+	encoding.BinaryUnmarshaler
 }
 
-func unmarshalKey[K encoding.BinaryMarshaler, KP binaryPointer[K]](data []byte) (K, error) {
+func unmarshalKey[K encoding.BinaryMarshaler, KP binaryUnmarshalerDereference[K]](data []byte) (K, error) {
 	var k K
 	kp := KP(&k)
 	err := kp.UnmarshalBinary(data)

@@ -1,19 +1,9 @@
 package kv
 
-type Option func(options) options
-
-type options struct {
-	codec Codec
+type Options struct {
+	Codec Codec
 }
 
-var defaultOptions = options{
-	codec: JSONcodec{},
-}
-
-func getOptions(opts ...Option) options {
-	o := defaultOptions
-	for _, opt := range opts {
-		o = opt(o)
-	}
-	return o
+var DefaultOptions = Options{
+	Codec: JSONcodec{},
 }
