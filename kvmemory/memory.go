@@ -4,20 +4,22 @@ import (
 	"context"
 	"strings"
 	"sync"
+
+	"github.com/royalcat/kv"
 )
 
-func NewMemoryKV[K Bytes, V any]() Store[K, V] {
+func NewMemoryKV[K kv.Bytes, V any]() kv.Store[K, V] {
 	return &memoryKV[K, V]{
 		data: map[string]V{},
 	}
 }
 
-type memoryKV[K Bytes, V any] struct {
+type memoryKV[K kv.Bytes, V any] struct {
 	m    sync.Mutex
 	data map[string]V
 }
 
-var _ Store[string, string] = (*memoryKV[string, string])(nil)
+var _ kv.Store[string, string] = (*memoryKV[string, string])(nil)
 
 // Close implements Store.
 func (m *memoryKV[K, V]) Close(ctx context.Context) error {
@@ -52,20 +54,20 @@ func (m *memoryKV[K, V]) Set(ctx context.Context, k K, v V) error {
 }
 
 // Range implements Store.
-func (m *memoryKV[K, V]) Range(ctx context.Context, iter Iter[K, V]) error {
+func (m *memoryKV[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
 	m.m.Lock()
 	defer m.m.Unlock()
 
 	for k, v := range m.data {
-		if !iter(K(k), v) {
-			break
+		if err := iter(K(k), v); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 // RangeWithPrefix implements Store.
-func (m *memoryKV[K, V]) RangeWithPrefix(ctx context.Context, prefix K, iter Iter[K, V]) error {
+func (m *memoryKV[K, V]) RangeWithPrefix(ctx context.Context, prefix K, iter kv.Iter[K, V]) error {
 	m.m.Lock()
 	defer m.m.Unlock()
 
@@ -74,8 +76,8 @@ func (m *memoryKV[K, V]) RangeWithPrefix(ctx context.Context, prefix K, iter Ite
 			continue
 		}
 
-		if !iter(K(k), v) {
-			break
+		if err := iter(K(k), v); err != nil {
+			return err
 		}
 	}
 	return nil

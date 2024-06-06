@@ -5,54 +5,60 @@ import (
 	"encoding"
 )
 
+// Store is an interface that represents a key-value store.
+// It provides methods for storing, retrieving, and deleting key-value pairs.
+// The implementation of the store can use different marshalling formats, such as JSON or gob.
+// Generic type of the value must be non-pointer type, until implementation says otherwise.
 type Store[K any, V any] interface {
 	// Set stores the given value for the given key.
 	// The implementation automatically marshalls the value.
-	// The marshalling format depends on the implementation. It can be JSON, gob etc.
-	// The key must not be "" and the value must not be nil.
+	// The marshalling format depends on the implementation. It can be JSON, gob, etc.
 	Set(ctx context.Context, k K, v V) error
+
 	// Get retrieves the value for the given key.
 	// The implementation automatically unmarshalls the value.
-	// The unmarshalling source depends on the implementation. It can be JSON, gob etc.
+	// The unmarshalling source depends on the implementation. It can be JSON, gob, etc.
 	// The automatic unmarshalling requires a pointer to an object of the correct type
-	// being passed as parameter.
-	// In case of a struct the Get method will populate the fields of the object
+	// being passed as a parameter.
+	// In the case of a struct, the Get method will populate the fields of the object
 	// that the passed pointer points to with the values of the retrieved object's values.
-	// If no value is found it returns (false, nil).
-	// The key must not be "" and the pointer must not be nil.
+	// If no value is found, it returns (false, nil).
 	Get(ctx context.Context, k K) (v V, found bool, err error)
 
 	// Delete deletes the stored value for the given key.
-	// Deleting a non-existing key-value pair does NOT lead to an error.
-	// The key must not be "".
+	// Deleting a non-existing key-value MUST NOT lead to an error.
 	Delete(ctx context.Context, k K) error
 
 	// Close must be called when the work with the key-value store is done.
-	// Most (if not all) implementations are meant to be used long-lived,
-	// so only call Close() at the very end.
-	// Depending on the store implementation it might do one or more of the following:
-	// Make sure all pending updates make their way to disk,
-	// finish open transactions,
-	// close the file handle to an embedded DB,
-	// close the connection to the DB server,
-	// release any open resources,
-	// etc.
-	// Some implementation might not need the store to be closed,
-	// but as long as you work with the kv.Store interface you never know which implementation
+	//
+	// As the same interface is used for managing transactions, calling Close() will commit the transaction in this case.
+	// Most other implementations are meant to be long-lived, so only call Close() at the very end.
+	//
+	// Some implementations might not need the store to be closed,
+	// but as long as you work with the kv.Store interface, you never know which implementation
 	// is passed to your method, so you should always call it.
 	Close(ctx context.Context) error
 
+	// Range iterates over all key-value pairs in the store and calls the provided iterator function for each pair.
+	// The iterator function should return non-nil error to stop the iteration, is this case. This error will be returned by Range, its canonical to return [io.EOF]
 	Range(ctx context.Context, iter Iter[K, V]) error
-	RangeWithPrefix(ctx context.Context, k K, iter Iter[K, V]) error
+
+	// RangeWithPrefix iterates over all key-value pairs in the store that have the given prefix
+	// and calls the provided iterator function for each pair.
+	// The iterator function should return non-nil error to stop the iteration.
+	RangeWithPrefix(ctx context.Context, prefix K, iter Iter[K, V]) error
 }
 
+// Bytes is an interface that represents a byte slice or a string.
 type Bytes interface {
 	~[]byte | ~string
 }
 
+// Binary is an interface that represents a binary marshaler and unmarshaler.
 type Binary interface {
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 }
 
-type Iter[K, V any] func(k K, v V) bool
+// Iter is a function type that represents an iterator function for key-value pairs.
+type Iter[K, V any] func(k K, v V) error

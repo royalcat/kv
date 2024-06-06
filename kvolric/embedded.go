@@ -79,8 +79,8 @@ func (s *embedded[V]) Range(ctx context.Context, iter kv.Iter[string, V]) error 
 			continue
 		}
 
-		if !iter(k, v) {
-			break
+		if err := iter(k, v); err != nil {
+			return err
 		}
 
 	}
@@ -106,8 +106,8 @@ func (s *embedded[V]) RangeWithPrefix(ctx context.Context, k string, iter kv.Ite
 			continue
 		}
 
-		if !iter(k, v) {
-			break
+		if err := iter(k, v); err != nil {
+			return err
 		}
 
 	}
