@@ -30,11 +30,7 @@ func (s *storeBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) error {
 	}
 
 	return s.DB.Update(func(txn *badger.Txn) error {
-		data, err := s.Codec.Marshal(v)
-		if err != nil {
-			return err
-		}
-		return txn.Set(kb, data)
+		return txSet(txn, kb, v, s.Options)
 	})
 }
 
@@ -45,24 +41,8 @@ func (s *storeBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (v V, found boo
 	}
 
 	err = s.DB.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(kb)
-		if err != nil {
-			if err == badger.ErrKeyNotFound {
-				found = false
-				return nil
-			}
-		}
-
-		data, err := item.ValueCopy(nil)
-		if err != nil {
-			return err
-		}
-		err = s.Codec.Unmarshal(data, &v)
-		if err != nil {
-			return err
-		}
-		found = true
-		return nil
+		v, found, err = txGet[V](txn, kb, s.Options)
+		return err
 	})
 	return v, found, err
 }
@@ -92,23 +72,18 @@ func (s *storeBinaryKey[K, V, KP]) Range(ctx context.Context, iter kv.Iter[K, V]
 }
 
 func (s *storeBinaryKey[K, V, KP]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
-	return s.rawRange(ctx, opt, func(key []byte, val []byte) error {
-		var k K
-		kp := KP(&k)
-		err := kp.UnmarshalBinary(key)
-		if err != nil {
-			return err
-		}
+	return s.DB.View(func(txn *badger.Txn) error {
+		return txRange[V](ctx, txn, opt, s.Options, func(k []byte, v V) error {
+			var key K
+			kp := KP(&key)
+			err := kp.UnmarshalBinary(k)
+			if err != nil {
+				return err
+			}
 
-		var v V
-		err = s.Codec.Unmarshal(val, &v)
-		if err != nil {
-			return err
-		}
-
-		return iter(*kp, v)
+			return iter(key, v)
+		})
 	})
-
 }
 
 func (s *storeBinaryKey[K, V, KP]) Transaction(update bool) (kv.Store[K, V], error) {
@@ -144,7 +119,7 @@ func (t *transactionBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (V, bool,
 		return v, false, err
 	}
 
-	return txGet[V](t.tx, kb, t.Codec)
+	return txGet[V](t.tx, kb, t.Options)
 }
 
 // Set implements kv.Store.
@@ -154,7 +129,7 @@ func (t *transactionBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) erro
 		return err
 	}
 
-	return txSet[V](t.tx, kb, v, t.Codec)
+	return txSet[V](t.tx, kb, v, t.Options)
 
 }
 
@@ -162,7 +137,7 @@ func (t *transactionBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) erro
 func (t *transactionBinaryKey[K, V, KP]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
 
 	var err error
-	return txRange(ctx, t.tx, badger.DefaultIteratorOptions, t.Codec, func(kb []byte, v V) error {
+	return txRange(ctx, t.tx, badger.DefaultIteratorOptions, t.Options, func(kb []byte, v V) error {
 		var k K
 		kp := KP(&k)
 		err = kp.UnmarshalBinary(kb)
@@ -181,7 +156,7 @@ func (t *transactionBinaryKey[K, V, KP]) RangeWithPrefix(ctx context.Context, k 
 		return err
 	}
 
-	return txRange[V](ctx, t.tx, prefixOptions(kb), t.Codec, func(kb []byte, v V) error {
+	return txRange[V](ctx, t.tx, prefixOptions(kb), t.Options, func(kb []byte, v V) error {
 		var k K
 		kp := KP(&k)
 		err := kp.UnmarshalBinary(kb)

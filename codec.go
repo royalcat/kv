@@ -16,7 +16,7 @@ type Codec interface {
 // Convenience variables
 var (
 	// JSON is a JSONcodec that encodes/decodes Go values to/from JSON.
-	JSON = JSONcodec{}
+	JSON = JSONCodec{}
 	// Gob is a GobCodec that encodes/decodes Go values to/from gob.
 	Gob = GobCodec{}
 )
@@ -43,16 +43,16 @@ func (c GobCodec) Unmarshal(data []byte, v any) error {
 	return decoder.Decode(v)
 }
 
-// JSONcodec encodes/decodes Go values to/from JSON.
+// JSONCodec encodes/decodes Go values to/from JSON.
 // You can use encoding.JSON instead of creating an instance of this struct.
-type JSONcodec struct{}
+type JSONCodec struct{}
 
 // Marshal encodes a Go value to JSON.
-func (c JSONcodec) Marshal(v any) ([]byte, error) {
+func (c JSONCodec) Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
 // Unmarshal decodes a JSON value into a Go value.
-func (c JSONcodec) Unmarshal(data []byte, v any) error {
+func (c JSONCodec) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }

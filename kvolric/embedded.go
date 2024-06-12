@@ -24,7 +24,7 @@ func NewEmbedded[V any](db *olric.Olric, bucket string) (kv.Store[string, V], er
 }
 
 type Options struct {
-	kv.Options
+	Codec kv.Codec
 }
 
 type embedded[V any] struct {

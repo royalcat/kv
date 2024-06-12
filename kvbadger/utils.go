@@ -3,12 +3,14 @@ package kvbadger
 import (
 	"context"
 	"errors"
+	"reflect"
+	"slices"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/royalcat/kv"
 )
 
-func txGet[V any](txn *badger.Txn, k []byte, codec kv.Codec) (V, bool, error) {
+func txGet[V any](txn *badger.Txn, k []byte, opts Options) (V, bool, error) {
 	var v V
 
 	item, err := txn.Get([]byte(k))
@@ -20,7 +22,8 @@ func txGet[V any](txn *badger.Txn, k []byte, codec kv.Codec) (V, bool, error) {
 	}
 
 	err = item.Value(func(val []byte) error {
-		return codec.Unmarshal(val, &v)
+		err = opts.Codec.Unmarshal(val, &v)
+		return err
 	})
 	if err != nil {
 		return v, true, err
@@ -29,17 +32,21 @@ func txGet[V any](txn *badger.Txn, k []byte, codec kv.Codec) (V, bool, error) {
 	return v, true, nil
 }
 
-func txSet[V any](txn *badger.Txn, k []byte, v V, codec kv.Codec) error {
-
-	data, err := codec.Marshal(v)
+func txSet[V any](txn *badger.Txn, k []byte, v V, opts Options) error {
+	data, err := opts.Codec.Marshal(v)
 	if err != nil {
 		return err
 	}
 
-	return txn.Set([]byte(k), data)
+	entry := badger.NewEntry([]byte(k), data)
+	if opts.DefaultTTL > 0 {
+		entry = entry.WithTTL(opts.DefaultTTL)
+	}
+
+	return txn.SetEntry(entry)
 }
 
-func txRange[V any](ctx context.Context, txn *badger.Txn, opt badger.IteratorOptions, codec kv.Codec, iter kv.Iter[[]byte, V]) error {
+func txRange[V any](ctx context.Context, txn *badger.Txn, opt badger.IteratorOptions, opts Options, iter kv.Iter[[]byte, V]) error {
 	it := txn.NewIterator(opt)
 	defer it.Close()
 
@@ -52,7 +59,7 @@ func txRange[V any](ctx context.Context, txn *badger.Txn, opt badger.IteratorOpt
 
 		var v V
 		err := item.Value(func(val []byte) error {
-			return codec.Unmarshal(val, &v)
+			return opts.Codec.Unmarshal(val, &v)
 		})
 		if err != nil {
 			return err
@@ -83,9 +90,19 @@ func (noopCodecDef) Marshal(v any) ([]byte, error) {
 
 // Unmarshal implements kv.Codec.
 func (noopCodecDef) Unmarshal(data []byte, v any) error {
-	if _, ok := v.(*[]byte); ok {
-		return errors.New("output value must be the pointer to []byte")
+
+	val := reflect.ValueOf(v).Elem()
+	valType := val.Type()
+
+	if valType.Kind() == reflect.String {
+		val.Set(reflect.ValueOf(string(data)))
+		return nil
+	} else if valType.Kind() == reflect.Slice && valType.Elem().Kind() == reflect.Uint8 {
+		out := slices.Clone(data)
+		val.Set(reflect.ValueOf(out))
+		return nil
 	}
-	v = &data
-	return nil
+
+	return errors.New("output value must be the pointer to []byte or string")
+
 }

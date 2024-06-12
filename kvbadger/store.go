@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/royalcat/kv"
 )
 
 func prefixOptions(prefix []byte) badger.IteratorOptions {
@@ -24,32 +23,33 @@ type BadgerStore interface {
 }
 
 type badgerStore struct {
-	DB *badger.DB
-	Options
+	DB      *badger.DB
+	Options Options
 }
 
 func (s *badgerStore) Close(ctx context.Context) error {
 	return s.DB.Close()
 }
 
-func (s *badgerStore) rawRange(_ context.Context, opt badger.IteratorOptions, iter kv.Iter[[]byte, []byte]) error {
-	return s.DB.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(opt)
-		defer it.Close()
+// func (s *badgerStore) rawRange(_ context.Context, opt badger.IteratorOptions, iter kv.Iter[[]byte, []byte]) error {
 
-		for it.Rewind(); it.Valid(); it.Next() {
-			item := it.Item()
+// 	return s.DB.View(func(txn *badger.Txn) error {
+// 		it := txn.NewIterator(opt)
+// 		defer it.Close()
 
-			data, err := item.ValueCopy(nil)
-			if err != nil {
-				return err
-			}
-			iter(item.KeyCopy(nil), data)
-		}
+// 		for it.Rewind(); it.Valid(); it.Next() {
+// 			item := it.Item()
 
-		return nil
-	})
-}
+// 			data, err := item.ValueCopy(nil)
+// 			if err != nil {
+// 				return err
+// 			}
+// 			iter(item.KeyCopy(nil), data)
+// 		}
+
+// 		return nil
+// 	})
+// }
 
 func (s *badgerStore) BadgerDB() *badger.DB {
 	return s.DB

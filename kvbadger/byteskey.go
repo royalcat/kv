@@ -1,7 +1,6 @@
 package kvbadger
 
 import (
-	"bytes"
 	"context"
 
 	"github.com/dgraph-io/badger/v4"
@@ -26,34 +25,14 @@ type storeBytesKey[K kv.Bytes, V any] struct {
 
 func (s *storeBytesKey[K, V]) Set(ctx context.Context, k K, v V) error {
 	return s.DB.Update(func(txn *badger.Txn) error {
-		data, err := s.Codec.Marshal(v)
-		if err != nil {
-			return err
-		}
-		return txn.Set([]byte(k), data)
+		return txSet(txn, []byte(k), v, s.Options)
 	})
 }
 
 func (s *storeBytesKey[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error) {
 	err = s.DB.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(k))
-		if err != nil {
-			if err == badger.ErrKeyNotFound {
-				found = false
-				return nil
-			}
-		}
-
-		data, err := item.ValueCopy(nil)
-		if err != nil {
-			return err
-		}
-		err = s.Codec.Unmarshal(data, &v)
-		if err != nil {
-			return err
-		}
-		found = true
-		return nil
+		v, found, err = txGet[V](txn, []byte(k), s.Options)
+		return err
 	})
 	return v, found, err
 }
@@ -72,28 +51,10 @@ func (s *storeBytesKey[K, V]) RangeOrdered(ctx context.Context, order kv.Order[K
 	opts := badger.DefaultIteratorOptions
 	opts.Reverse = order.Reverse
 
-	data := make([]byte, 0, 32)
-
 	s.DB.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(opts)
-		for it.Seek([]byte(order.Min)); it.Valid(); it.Next() {
-			item := it.Item()
-			k := item.Key()
-			if bytes.Compare(k, []byte(order.Max)) == 1 {
-				break
-			}
-
-			var v V
-			err := item.Value(func(val []byte) error {
-				return s.Codec.Unmarshal(data, &v)
-			})
-			if err != nil {
-				return err
-			}
-
-			return iter(K(k), V(v))
-		}
-		return nil
+		return txRange(ctx, txn, opts, s.Options, func(k []byte, v V) error {
+			return iter(K(k), v)
+		})
 	})
 
 	return nil
@@ -104,18 +65,11 @@ func (s *storeBytesKey[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) err
 }
 
 func (s *storeBytesKey[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
-	var err error
-	err = s.rawRange(ctx, opt, func(k, val []byte) error {
-		var v V
-		err = s.Codec.Unmarshal(val, &v)
-		if err != nil {
-			return err
-		}
-
-		return iter(K(k), V(v))
+	return s.DB.View(func(txn *badger.Txn) error {
+		return txRange(ctx, txn, opt, s.Options, func(k []byte, v V) error {
+			return iter(K(k), v)
+		})
 	})
-
-	return err
 }
 
 var _ kv.TransactionalStore[string, string] = (*storeBytesKey[string, string])(nil)
@@ -147,24 +101,24 @@ func (t *transactionBytesKey[K, V]) Delete(ctx context.Context, k K) error {
 
 // Get implements kv.Store.
 func (t *transactionBytesKey[K, V]) Get(ctx context.Context, k K) (V, bool, error) {
-	return txGet[V](t.tx, []byte(k), t.Codec)
+	return txGet[V](t.tx, []byte(k), t.Options)
 }
 
 // Set implements kv.Store.
 func (t *transactionBytesKey[K, V]) Set(ctx context.Context, k K, v V) error {
-	return txSet(t.tx, []byte(k), v, t.Codec)
+	return txSet(t.tx, []byte(k), v, t.Options)
 }
 
 // Range implements kv.Store.
 func (t *transactionBytesKey[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
-	return txRange(ctx, t.tx, badger.DefaultIteratorOptions, t.Codec, func(k []byte, v V) error {
+	return txRange(ctx, t.tx, badger.DefaultIteratorOptions, t.Options, func(k []byte, v V) error {
 		return iter(K(k), v)
 	})
 }
 
 // RangeWithPrefix implements kv.Store.
 func (t *transactionBytesKey[K, V]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
-	return txRange(ctx, t.tx, prefixOptions([]byte(k)), t.Codec, func(k []byte, v V) error {
+	return txRange(ctx, t.tx, prefixOptions([]byte(k)), t.Options, func(k []byte, v V) error {
 		return iter(K(k), v)
 	})
 }
