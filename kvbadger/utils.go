@@ -10,15 +10,15 @@ import (
 	"github.com/royalcat/kv"
 )
 
-func txGet[V any](txn *badger.Txn, k []byte, opts Options) (V, bool, error) {
+func txGet[V any](txn *badger.Txn, k []byte, opts Options) (V, error) {
 	var v V
 
 	item, err := txn.Get([]byte(k))
 	if err != nil {
 		if err == badger.ErrKeyNotFound {
-			return v, false, nil
+			return v, kv.ErrKeyNotFound
 		}
-		return v, false, err
+		return v, err
 	}
 
 	err = item.Value(func(val []byte) error {
@@ -26,10 +26,10 @@ func txGet[V any](txn *badger.Txn, k []byte, opts Options) (V, bool, error) {
 		return err
 	})
 	if err != nil {
-		return v, true, err
+		return v, err
 	}
 
-	return v, true, nil
+	return v, err
 }
 
 func txSet[V any](txn *badger.Txn, k []byte, v V, opts Options) error {

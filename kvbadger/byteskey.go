@@ -29,12 +29,29 @@ func (s *storeBytesKey[K, V]) Set(ctx context.Context, k K, v V) error {
 	})
 }
 
-func (s *storeBytesKey[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error) {
+func (s *storeBytesKey[K, V]) Get(ctx context.Context, k K) (v V, err error) {
 	err = s.DB.View(func(txn *badger.Txn) error {
-		v, found, err = txGet[V](txn, []byte(k), s.Options)
+		v, err = txGet[V](txn, []byte(k), s.Options)
 		return err
 	})
-	return v, found, err
+	return v, err
+}
+
+// Get implements Store.
+func (s *storeBytesKey[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+	kb := []byte(k)
+
+	return s.DB.Update(func(txn *badger.Txn) error {
+		v, err := txGet[V](txn, kb, s.Options)
+		if err != nil {
+			return err
+		}
+		v, err = edit(ctx, v)
+		if err != nil {
+			return err
+		}
+		return txSet[V](txn, kb, v, s.Options)
+	})
 }
 
 func (s *storeBytesKey[K, V]) Delete(ctx context.Context, k K) error {
@@ -100,8 +117,25 @@ func (t *transactionBytesKey[K, V]) Delete(ctx context.Context, k K) error {
 }
 
 // Get implements kv.Store.
-func (t *transactionBytesKey[K, V]) Get(ctx context.Context, k K) (V, bool, error) {
+func (t *transactionBytesKey[K, V]) Get(ctx context.Context, k K) (V, error) {
 	return txGet[V](t.tx, []byte(k), t.Options)
+}
+
+// Get implements Store.
+func (s *transactionBytesKey[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+	kb := []byte(k)
+
+	v, err := txGet[V](s.tx, kb, s.Options)
+	if err != nil {
+		return err
+	}
+
+	v, err = edit(ctx, v)
+	if err != nil {
+		return err
+	}
+
+	return txSet[V](s.tx, kb, v, s.Options)
 }
 
 // Set implements kv.Store.

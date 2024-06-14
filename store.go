@@ -3,7 +3,10 @@ package kv
 import (
 	"context"
 	"encoding"
+	"errors"
 )
+
+var ErrKeyNotFound = errors.New("key not found")
 
 // Store is an interface that represents a key-value store.
 // It provides methods for storing, retrieving, and deleting key-value pairs.
@@ -23,11 +26,14 @@ type Store[K any, V any] interface {
 	// In the case of a struct, the Get method will populate the fields of the object
 	// that the passed pointer points to with the values of the retrieved object's values.
 	// If no value is found, it returns (false, nil).
-	Get(ctx context.Context, k K) (v V, found bool, err error)
+	Get(ctx context.Context, k K) (V, error)
 
 	// Delete deletes the stored value for the given key.
 	// Deleting a non-existing key-value MUST NOT lead to an error.
 	Delete(ctx context.Context, k K) error
+
+	// Edit retrieves the value for the given key, calls the provided edit function with the value,
+	Edit(ctx context.Context, k K, edit Edit[V]) error
 
 	// Close must be called when the work with the key-value store is done.
 	//
@@ -62,3 +68,4 @@ type Binary interface {
 
 // Iter is a function type that represents an iterator function for key-value pairs.
 type Iter[K, V any] func(k K, v V) error
+type Edit[V any] func(ctx context.Context, v V) (V, error)

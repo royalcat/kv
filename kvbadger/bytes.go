@@ -23,18 +23,35 @@ type storeBytes[K, V kv.Bytes] struct {
 	badgerStore
 }
 
+// Get implements Store.
+func (s *storeBytes[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+	kb := []byte(k)
+
+	return s.DB.Update(func(txn *badger.Txn) error {
+		v, err := txGet[V](txn, kb, s.Options)
+		if err != nil {
+			return err
+		}
+		v, err = edit(ctx, v)
+		if err != nil {
+			return err
+		}
+		return txSet[V](txn, kb, v, s.Options)
+	})
+}
+
 func (s *storeBytes[K, V]) Set(ctx context.Context, k K, v V) error {
 	return s.DB.Update(func(txn *badger.Txn) error {
 		return txSet(txn, []byte(k), []byte(v), s.Options)
 	})
 }
 
-func (s *storeBytes[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error) {
+func (s *storeBytes[K, V]) Get(ctx context.Context, k K) (v V, err error) {
 	err = s.DB.View(func(txn *badger.Txn) error {
-		v, found, err = txGet[V](txn, []byte(k), s.Options)
+		v, err = txGet[V](txn, []byte(k), s.Options)
 		return err
 	})
-	return v, found, err
+	return v, err
 }
 
 func (s *storeBytes[K, V]) Delete(ctx context.Context, k K) error {
@@ -84,10 +101,27 @@ func (t *transactionBytes[K, V]) Delete(ctx context.Context, k K) error {
 	return t.tx.Delete([]byte(k))
 }
 
+// Get implements Store.
+func (s *transactionBytes[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+	kb := []byte(k)
+
+	v, err := txGet[V](s.tx, kb, s.opt)
+	if err != nil {
+		return err
+	}
+
+	v, err = edit(ctx, v)
+	if err != nil {
+		return err
+	}
+
+	return txSet[V](s.tx, kb, v, s.opt)
+}
+
 // Get implements kv.Store.
-func (t *transactionBytes[K, V]) Get(ctx context.Context, k K) (V, bool, error) {
-	v, found, err := txGet[[]byte](t.tx, []byte(k), t.opt)
-	return V(v), found, err
+func (t *transactionBytes[K, V]) Get(ctx context.Context, k K) (V, error) {
+	v, err := txGet[[]byte](t.tx, []byte(k), t.opt)
+	return V(v), err
 }
 
 // Set implements kv.Store.

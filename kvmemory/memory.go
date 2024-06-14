@@ -27,6 +27,24 @@ func (m *memoryKV[K, V]) Close(ctx context.Context) error {
 }
 
 // Delete implements Store.
+func (m *memoryKV[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+	m.m.Lock()
+	defer m.m.Unlock()
+
+	v, found := m.data[string(k)]
+	if !found {
+		return kv.ErrKeyNotFound
+	}
+	var err error
+	v, err = edit(ctx, v)
+	if err != nil {
+		return err
+	}
+	m.data[string(k)] = v
+	return nil
+}
+
+// Delete implements Store.
 func (m *memoryKV[K, V]) Delete(ctx context.Context, k K) error {
 	m.m.Lock()
 	defer m.m.Unlock()
@@ -36,12 +54,16 @@ func (m *memoryKV[K, V]) Delete(ctx context.Context, k K) error {
 }
 
 // Get implements Store.
-func (m *memoryKV[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error) {
+func (m *memoryKV[K, V]) Get(ctx context.Context, k K) (V, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 
-	v, found = m.data[string(k)]
-	return v, found, nil
+	v, found := m.data[string(k)]
+	if !found {
+		return v, kv.ErrKeyNotFound
+	}
+
+	return v, nil
 }
 
 // Set implements Store.

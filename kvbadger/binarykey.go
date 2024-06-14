@@ -23,6 +23,26 @@ type storeBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]] stru
 	badgerStore
 }
 
+// Get implements Store.
+func (s *storeBinaryKey[K, V, KP]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+	kb, err := k.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	return s.DB.Update(func(txn *badger.Txn) error {
+		v, err := txGet[V](txn, kb, s.Options)
+		if err != nil {
+			return err
+		}
+		v, err = edit(ctx, v)
+		if err != nil {
+			return err
+		}
+		return txSet[V](txn, kb, v, s.Options)
+	})
+}
+
 func (s *storeBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) error {
 	kb, err := k.MarshalBinary()
 	if err != nil {
@@ -34,17 +54,18 @@ func (s *storeBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) error {
 	})
 }
 
-func (s *storeBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (v V, found bool, err error) {
+func (s *storeBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (V, error) {
+	var v V
 	kb, err := k.MarshalBinary()
 	if err != nil {
-		return v, found, err
+		return v, err
 	}
 
 	err = s.DB.View(func(txn *badger.Txn) error {
-		v, found, err = txGet[V](txn, kb, s.Options)
+		v, err = txGet[V](txn, kb, s.Options)
 		return err
 	})
-	return v, found, err
+	return v, err
 }
 
 func (s *storeBinaryKey[K, V, KP]) Delete(ctx context.Context, k K) error {
@@ -89,17 +110,17 @@ func (s *storeBinaryKey[K, V, KP]) RangeWithOptions(ctx context.Context, opt bad
 func (s *storeBinaryKey[K, V, KP]) Transaction(update bool) (kv.Store[K, V], error) {
 	tx := s.DB.NewTransaction(update)
 	return &transactionBinaryKey[K, V, KP]{
-		tx: tx,
+		txn: tx,
 	}, nil
 }
 
 type transactionBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]] struct {
-	tx *badger.Txn
+	txn *badger.Txn
 	badgerStore
 }
 
 func (t *transactionBinaryKey[K, V, KP]) Close(ctx context.Context) error {
-	return t.tx.Commit()
+	return t.txn.Commit()
 }
 
 // Delete implements kv.Store.
@@ -108,18 +129,39 @@ func (t *transactionBinaryKey[K, V, KP]) Delete(ctx context.Context, k K) error 
 	if err != nil {
 		return err
 	}
-	return t.tx.Delete(kb)
+	return t.txn.Delete(kb)
+}
+
+// Get implements Store.
+func (s *transactionBinaryKey[K, V, KP]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+	kb, err := k.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	v, err := txGet[V](s.txn, kb, s.Options)
+	if err != nil {
+		return err
+	}
+
+	v, err = edit(ctx, v)
+	if err != nil {
+		return err
+	}
+
+	return txSet[V](s.txn, kb, v, s.Options)
+
 }
 
 // Get implements kv.Store.
-func (t *transactionBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (V, bool, error) {
+func (t *transactionBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (V, error) {
 	kb, err := k.MarshalBinary()
 	if err != nil {
 		var v V
-		return v, false, err
+		return v, err
 	}
 
-	return txGet[V](t.tx, kb, t.Options)
+	return txGet[V](t.txn, kb, t.Options)
 }
 
 // Set implements kv.Store.
@@ -129,7 +171,7 @@ func (t *transactionBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) erro
 		return err
 	}
 
-	return txSet[V](t.tx, kb, v, t.Options)
+	return txSet[V](t.txn, kb, v, t.Options)
 
 }
 
@@ -137,7 +179,7 @@ func (t *transactionBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) erro
 func (t *transactionBinaryKey[K, V, KP]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
 
 	var err error
-	return txRange(ctx, t.tx, badger.DefaultIteratorOptions, t.Options, func(kb []byte, v V) error {
+	return txRange(ctx, t.txn, badger.DefaultIteratorOptions, t.Options, func(kb []byte, v V) error {
 		var k K
 		kp := KP(&k)
 		err = kp.UnmarshalBinary(kb)
@@ -156,7 +198,7 @@ func (t *transactionBinaryKey[K, V, KP]) RangeWithPrefix(ctx context.Context, k 
 		return err
 	}
 
-	return txRange[V](ctx, t.tx, prefixOptions(kb), t.Options, func(kb []byte, v V) error {
+	return txRange[V](ctx, t.txn, prefixOptions(kb), t.Options, func(kb []byte, v V) error {
 		var k K
 		kp := KP(&k)
 		err := kp.UnmarshalBinary(kb)

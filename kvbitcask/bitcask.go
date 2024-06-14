@@ -26,17 +26,17 @@ func New[K, V kv.Bytes](path string, options ...bitcask.Option) (*BitcaskStore[K
 var _ kv.Store[string, string] = (*BitcaskStore[string, string])(nil)
 
 // Get implements kv.Store.
-func (s *BitcaskStore[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error) {
+func (s *BitcaskStore[K, V]) Get(ctx context.Context, k K) (V, error) {
 	data, err := s.DB.Get(bitcask.Key(k))
 	if err != nil {
+		var v V
 		if err == bitcask.ErrKeyNotFound {
-			return v, false, nil
+			return v, kv.ErrKeyNotFound
 		}
-
-		return v, false, nil
+		return v, err
 	}
 
-	return V(data), true, nil
+	return V(data), nil
 }
 
 // Set implements kv.Store.
@@ -46,6 +46,28 @@ func (s *BitcaskStore[K, V]) Set(ctx context.Context, k K, v V) error {
 
 func (s *BitcaskStore[K, V]) Delete(ctx context.Context, k K) error {
 	return s.DB.Delete(bitcask.Key(k))
+}
+
+func (s *BitcaskStore[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+	tx := s.DB.Transaction()
+
+	data, err := tx.Get(bitcask.Key(k))
+	if err != nil {
+		tx.Discard()
+		return err
+	}
+	v, err := edit(ctx, V(data))
+	if err != nil {
+		tx.Discard()
+		return err
+	}
+	err = tx.Put(bitcask.Key(k), bitcask.Value(v))
+	if err != nil {
+		tx.Discard()
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (s *BitcaskStore[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) error {

@@ -32,7 +32,7 @@ func (p *prefixBytesStore[K, V]) Delete(ctx context.Context, k K) error {
 }
 
 // Get implements Store.
-func (p *prefixBytesStore[K, V]) Get(ctx context.Context, k K) (v V, found bool, err error) {
+func (p *prefixBytesStore[K, V]) Get(ctx context.Context, k K) (V, error) {
 	return p.store.Get(ctx, p.withPrefix(k))
 }
 
@@ -44,6 +44,11 @@ func (p *prefixBytesStore[K, V]) Range(ctx context.Context, iter Iter[K, V]) err
 // RangeWithPrefix implements Store.
 func (p *prefixBytesStore[K, V]) RangeWithPrefix(ctx context.Context, k K, iter Iter[K, V]) error {
 	return p.store.RangeWithPrefix(ctx, p.withPrefix(k), iter)
+}
+
+// Get implements Store.
+func (p *prefixBytesStore[K, V]) Edit(ctx context.Context, k K, edit Edit[V]) error {
+	return p.store.Edit(ctx, p.withPrefix(k), edit)
 }
 
 // Set implements Store.
@@ -92,10 +97,20 @@ func (p *prefixBinaryStore[K, V, KP]) Delete(ctx context.Context, k K) error {
 }
 
 // Get implements Store.
-func (p *prefixBinaryStore[K, V, KP]) Get(ctx context.Context, k K) (v V, found bool, err error) {
+func (p *prefixBinaryStore[K, V, KP]) Edit(ctx context.Context, k K, edit Edit[V]) error {
 	pk, err := p.withPrefix(k)
 	if err != nil {
-		return v, found, err
+		return err
+	}
+	return p.store.Edit(ctx, pk, edit)
+}
+
+// Get implements Store.
+func (p *prefixBinaryStore[K, V, KP]) Get(ctx context.Context, k K) (V, error) {
+	pk, err := p.withPrefix(k)
+	if err != nil {
+		var v V
+		return v, err
 	}
 	return p.store.Get(ctx, pk)
 }

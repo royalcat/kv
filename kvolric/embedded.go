@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"time"
 
 	"github.com/buraksezer/olric"
 	"github.com/royalcat/kv"
@@ -42,23 +43,61 @@ func (s *embedded[V]) Delete(ctx context.Context, k string) error {
 }
 
 // Get implements kv.Store.
-func (s *embedded[V]) Get(ctx context.Context, k string) (v V, found bool, err error) {
+func (s *embedded[V]) Get(ctx context.Context, k string) (V, error) {
+	var v V
 	resp, err := s.dm.Get(ctx, k)
 	if err != nil {
 		if errors.Is(err, olric.ErrKeyNotFound) {
-			return v, false, nil
+			return v, kv.ErrKeyNotFound
 		}
-
-		return v, found, err
+		return v, err
 	}
 
 	data, err := resp.Byte()
 	if err != nil {
-		return v, found, err
+		return v, err
 	}
 
 	err = s.Codec.Unmarshal(data, &v)
-	return v, true, err
+	return v, err
+}
+
+const editTimeout = 10 * time.Second
+
+// Get implements kv.Store.
+func (s *embedded[V]) Edit(ctx context.Context, k string, edit kv.Edit[V]) error {
+	lc, err := s.dm.Lock(ctx, k, editTimeout)
+	if err != nil {
+		return err
+	}
+	defer lc.Unlock(ctx)
+
+	var v V
+	resp, err := s.dm.Get(ctx, k)
+	if err != nil {
+		if errors.Is(err, olric.ErrKeyNotFound) {
+			return kv.ErrKeyNotFound
+		}
+		return err
+	}
+
+	data, err := resp.Byte()
+	if err != nil {
+		return err
+	}
+
+	err = s.Codec.Unmarshal(data, &v)
+
+	v, err = edit(ctx, v)
+	if err != nil {
+		return err
+	}
+
+	data, err = s.Codec.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return s.dm.Put(ctx, k, data)
 }
 
 // Range implements kv.Store.
@@ -71,18 +110,18 @@ func (s *embedded[V]) Range(ctx context.Context, iter kv.Iter[string, V]) error 
 	for it.Next() {
 		k := it.Key()
 
-		v, found, err := s.Get(ctx, k)
+		v, err := s.Get(ctx, k)
 		if err != nil {
+			if errors.Is(err, olric.ErrKeyNotFound) {
+				continue
+			}
+
 			return err
-		}
-		if !found {
-			continue
 		}
 
 		if err := iter(k, v); err != nil {
 			return err
 		}
-
 	}
 
 	return nil
@@ -98,12 +137,13 @@ func (s *embedded[V]) RangeWithPrefix(ctx context.Context, k string, iter kv.Ite
 	for it.Next() {
 		k := it.Key()
 
-		v, found, err := s.Get(ctx, k)
+		v, err := s.Get(ctx, k)
 		if err != nil {
+			if errors.Is(err, olric.ErrKeyNotFound) {
+				continue
+			}
+
 			return err
-		}
-		if !found {
-			continue
 		}
 
 		if err := iter(k, v); err != nil {

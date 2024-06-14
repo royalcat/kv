@@ -20,9 +20,8 @@ func TestBytesStore(t *testing.T) {
 		err = str.Set(ctx, "key", "value")
 		require.NoError(err)
 
-		v, found, err := str.Get(ctx, "key")
+		v, err := str.Get(ctx, "key")
 		require.NoError(err)
-		require.True(found)
 		require.Equal("value", v)
 	})
 
@@ -37,9 +36,8 @@ func TestBytesStore(t *testing.T) {
 		err = str.Set(ctx, "key", []byte("value"))
 		require.NoError(err)
 
-		v, found, err := str.Get(ctx, "key")
+		v, err := str.Get(ctx, "key")
 		require.NoError(err)
-		require.True(found)
 		require.Equal([]byte("value"), v)
 	})
 
