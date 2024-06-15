@@ -23,7 +23,7 @@ func (s *prefixBytesStore[K, V]) withPrefix(k K) K {
 
 // Close implements Store.
 func (p *prefixBytesStore[K, V]) Close(ctx context.Context) error {
-	return p.store.Close(ctx)
+	return nil
 }
 
 // Delete implements Store.
@@ -53,7 +53,7 @@ func (p *prefixBytesStore[K, V]) Edit(ctx context.Context, k K, edit Edit[V]) er
 
 // Set implements Store.
 func (p *prefixBytesStore[K, V]) Set(ctx context.Context, k K, v V) error {
-	return p.store.Set(ctx, k, v)
+	return p.store.Set(ctx, p.withPrefix(k), v)
 }
 
 func PrefixBinary[K encoding.BinaryMarshaler, V any, KP binaryUnmarshalerDereference[K]](s Store[K, V], prefix K) (Store[K, V], error) {
@@ -84,7 +84,7 @@ func (s *prefixBinaryStore[K, V, KP]) withPrefix(k K) (K, error) {
 
 // Close implements Store.
 func (p *prefixBinaryStore[K, V, KP]) Close(ctx context.Context) error {
-	return p.store.Close(ctx)
+	return nil
 }
 
 // Delete implements Store.
@@ -135,5 +135,9 @@ func (p *prefixBinaryStore[K, V, KP]) RangeWithPrefix(ctx context.Context, k K, 
 
 // Set implements Store.
 func (p *prefixBinaryStore[K, V, KP]) Set(ctx context.Context, k K, v V) error {
-	return p.store.Set(ctx, k, v)
+	pk, err := p.withPrefix(k)
+	if err != nil {
+		return err
+	}
+	return p.store.Set(ctx, pk, v)
 }
