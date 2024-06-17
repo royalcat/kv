@@ -27,28 +27,34 @@ func TestPrefixBytes(t *testing.T) {
 		t.Fatalf("expected value to be 'value', got %s", val)
 	}
 
-	vals := []string{}
+	vals := map[string]string{}
 	pm.Range(ctx, func(k, v string) error {
-		vals = append(vals, v)
+		vals[k] = v
 		return nil
 	})
 	if len(vals) != 1 {
 		t.Fatalf("expected 1 value, got %d", len(vals))
 	}
-	if vals[0] != "value" {
-		t.Fatalf("expected value to be 'value', got %s", vals[0])
+	if _, ok := vals["key"]; !ok {
+		t.Fatalf("expected key to be 'key'")
+	}
+	if vals["key"] != "value" {
+		t.Fatalf("expected value to be 'value', got %s", vals["key"])
 	}
 
-	vals = []string{}
+	vals = map[string]string{}
 	pm.RangeWithPrefix(ctx, "k", func(k, v string) error {
-		vals = append(vals, v)
+		vals[k] = v
 		return nil
 	})
 	if len(vals) != 1 {
 		t.Fatalf("expected 1 value, got %d", len(vals))
 	}
-	if vals[0] != "value" {
-		t.Fatalf("expected value to be 'value', got %s", vals[0])
+	if _, ok := vals["key"]; !ok {
+		t.Fatalf("expected key to be 'key'")
+	}
+	if vals["key"] != "value" {
+		t.Fatalf("expected value to be 'value', got %s", vals["key"])
 	}
 
 	err = pm.Edit(ctx, "key", func(ctx context.Context, v string) (string, error) {

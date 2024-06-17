@@ -1,8 +1,10 @@
 package kv
 
 import (
+	"bytes"
 	"context"
 	"encoding"
+	"strings"
 )
 
 func PrefixBytes[K Bytes, V any](s Store[K, V], prefix K) Store[K, V] {
@@ -19,6 +21,10 @@ type prefixBytesStore[K Bytes, V any] struct {
 
 func (s *prefixBytesStore[K, V]) withPrefix(k K) K {
 	return K(string(s.prefix) + string(k))
+}
+
+func (s *prefixBytesStore[K, V]) cutPrefix(k K) K {
+	return K(strings.TrimPrefix(string(k), string(s.prefix)))
 }
 
 // Close implements Store.
@@ -38,12 +44,16 @@ func (p *prefixBytesStore[K, V]) Get(ctx context.Context, k K) (V, error) {
 
 // Range implements Store.
 func (p *prefixBytesStore[K, V]) Range(ctx context.Context, iter Iter[K, V]) error {
-	return p.store.RangeWithPrefix(ctx, K(p.prefix), iter)
+	return p.store.RangeWithPrefix(ctx, K(p.prefix), func(k K, v V) error {
+		return iter(p.cutPrefix(k), v)
+	})
 }
 
 // RangeWithPrefix implements Store.
 func (p *prefixBytesStore[K, V]) RangeWithPrefix(ctx context.Context, k K, iter Iter[K, V]) error {
-	return p.store.RangeWithPrefix(ctx, p.withPrefix(k), iter)
+	return p.store.RangeWithPrefix(ctx, p.withPrefix(k), func(k K, v V) error {
+		return iter(p.cutPrefix(k), v)
+	})
 }
 
 // Get implements Store.
@@ -78,6 +88,18 @@ func (s *prefixBinaryStore[K, V, KP]) withPrefix(k K) (K, error) {
 		var out K
 		return out, err
 	}
+
+	return unmarshalKey[K, KP](p)
+}
+
+func (s *prefixBinaryStore[K, V, KP]) cutPrefix(k K) (K, error) {
+	p, err := k.MarshalBinary()
+	if err != nil {
+		var out K
+		return out, err
+	}
+
+	p = bytes.TrimPrefix(p, s.prefix)
 
 	return unmarshalKey[K, KP](p)
 }
@@ -121,7 +143,14 @@ func (p *prefixBinaryStore[K, V, KP]) Range(ctx context.Context, iter Iter[K, V]
 	if err != nil {
 		return err
 	}
-	return p.store.RangeWithPrefix(ctx, pk, iter)
+	iterCut := func(k K, v V) error {
+		k, err := p.cutPrefix(k)
+		if err != nil {
+			return err
+		}
+		return iter(k, v)
+	}
+	return p.store.RangeWithPrefix(ctx, pk, iterCut)
 }
 
 // RangeWithPrefix implements Store.
@@ -130,7 +159,15 @@ func (p *prefixBinaryStore[K, V, KP]) RangeWithPrefix(ctx context.Context, k K, 
 	if err != nil {
 		return err
 	}
-	return p.store.RangeWithPrefix(ctx, pk, iter)
+	iterCut := func(k K, v V) error {
+		k, err := p.cutPrefix(k)
+		if err != nil {
+			return err
+		}
+		return iter(k, v)
+	}
+
+	return p.store.RangeWithPrefix(ctx, pk, iterCut)
 }
 
 // Set implements Store.
