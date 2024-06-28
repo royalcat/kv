@@ -24,12 +24,12 @@ func NewEmbedded[V any](db *olric.Olric, bucket string) (kv.Store[string, V], er
 
 }
 
-type Options struct {
-	Codec kv.Codec
+type Options[V any] struct {
+	Codec kv.Codec[V]
 }
 
 type embedded[V any] struct {
-	Options
+	Options[V]
 	c  *olric.EmbeddedClient
 	dm olric.DMap
 }

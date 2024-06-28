@@ -7,20 +7,20 @@ import (
 	"github.com/royalcat/kv"
 )
 
-func NewBadgerKVBytes[K, V kv.Bytes](opts Options) (kv.Store[K, V], error) {
+func NewBadgerKVBytes[K, V kv.Bytes](opts Options[V]) (kv.Store[K, V], error) {
 	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err
 	}
-	opts.Codec = noopCodec
-	return &storeBytes[K, V]{badgerStore: badgerStore{
+	opts.Codec = kv.BytesCodec[V]{}
+	return &storeBytes[K, V]{badgerStore: badgerStore[V]{
 		DB:      db,
 		Options: opts,
 	}}, nil
 }
 
 type storeBytes[K, V kv.Bytes] struct {
-	badgerStore
+	badgerStore[V]
 }
 
 // Get implements Store.
@@ -42,7 +42,7 @@ func (s *storeBytes[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error
 
 func (s *storeBytes[K, V]) Set(ctx context.Context, k K, v V) error {
 	return s.DB.Update(func(txn *badger.Txn) error {
-		return txSet(txn, []byte(k), []byte(v), s.Options)
+		return txSet[V](txn, []byte(k), V(v), s.Options)
 	})
 }
 
@@ -87,7 +87,7 @@ func (s *storeBytes[K, V]) Transaction(update bool) (kv.Store[K, V], error) {
 
 type transactionBytes[K, V kv.Bytes] struct {
 	tx  *badger.Txn
-	opt Options
+	opt Options[V]
 }
 
 var _ kv.Store[string, string] = (*transactionBytes[string, string])(nil)
@@ -120,26 +120,26 @@ func (s *transactionBytes[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V])
 
 // Get implements kv.Store.
 func (t *transactionBytes[K, V]) Get(ctx context.Context, k K) (V, error) {
-	v, err := txGet[[]byte](t.tx, []byte(k), t.opt)
+	v, err := txGet[V](t.tx, []byte(k), t.opt)
 	return V(v), err
 }
 
 // Set implements kv.Store.
 func (t *transactionBytes[K, V]) Set(ctx context.Context, k K, v V) error {
-	return txSet[[]byte](t.tx, []byte(k), []byte(v), t.opt)
+	return txSet[V](t.tx, []byte(k), V(v), t.opt)
 
 }
 
 // Range implements kv.Store.
 func (t *transactionBytes[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
-	return txRange[[]byte](ctx, t.tx, badger.DefaultIteratorOptions, t.opt, func(k []byte, v []byte) error {
+	return txRange[V](ctx, t.tx, badger.DefaultIteratorOptions, t.opt, func(k []byte, v V) error {
 		return iter(K(k), V(v))
 	})
 }
 
 // RangeWithPrefix implements kv.Store.
 func (t *transactionBytes[K, V]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
-	return txRange[[]byte](ctx, t.tx, prefixOptions([]byte(k)), t.opt, func(k []byte, v []byte) error {
+	return txRange[V](ctx, t.tx, prefixOptions([]byte(k)), t.opt, func(k []byte, v V) error {
 		return iter(K(k), V(v))
 	})
 }

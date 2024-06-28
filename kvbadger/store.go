@@ -22,35 +22,15 @@ type BadgerStore interface {
 	BadgerDB() *badger.DB
 }
 
-type badgerStore struct {
+type badgerStore[V any] struct {
 	DB      *badger.DB
-	Options Options
+	Options Options[V]
 }
 
-func (s *badgerStore) Close(ctx context.Context) error {
+func (s *badgerStore[V]) Close(ctx context.Context) error {
 	return s.DB.Close()
 }
 
-// func (s *badgerStore) rawRange(_ context.Context, opt badger.IteratorOptions, iter kv.Iter[[]byte, []byte]) error {
-
-// 	return s.DB.View(func(txn *badger.Txn) error {
-// 		it := txn.NewIterator(opt)
-// 		defer it.Close()
-
-// 		for it.Rewind(); it.Valid(); it.Next() {
-// 			item := it.Item()
-
-// 			data, err := item.ValueCopy(nil)
-// 			if err != nil {
-// 				return err
-// 			}
-// 			iter(item.KeyCopy(nil), data)
-// 		}
-
-// 		return nil
-// 	})
-// }
-
-func (s *badgerStore) BadgerDB() *badger.DB {
+func (s *badgerStore[V]) BadgerDB() *badger.DB {
 	return s.DB
 }

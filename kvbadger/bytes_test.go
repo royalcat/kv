@@ -12,7 +12,7 @@ func TestBytesStore(t *testing.T) {
 	t.Run("String value", func(t *testing.T) {
 		ctx := context.Background()
 		require := require.New(t)
-		opts := kvbadger.DefaultOptions("")
+		opts := kvbadger.DefaultOptions[string]("")
 		opts.BadgerOptions.InMemory = true
 		str, err := kvbadger.NewBadgerKVBytes[string, string](opts)
 		require.NoError(err)
@@ -28,7 +28,7 @@ func TestBytesStore(t *testing.T) {
 	t.Run("Bytes value", func(t *testing.T) {
 		ctx := context.Background()
 		require := require.New(t)
-		opts := kvbadger.DefaultOptions("")
+		opts := kvbadger.DefaultOptions[[]byte]("")
 		opts.BadgerOptions.InMemory = true
 		str, err := kvbadger.NewBadgerKVBytes[string, []byte](opts)
 		require.NoError(err)

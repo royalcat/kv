@@ -8,19 +8,19 @@ import (
 	"github.com/royalcat/kv"
 )
 
-func NewBagerKVBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](opts Options) (kv.Store[K, V], error) {
+func NewBagerKVBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](opts Options[V]) (kv.Store[K, V], error) {
 	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err
 	}
-	return &storeBinaryKey[K, V, KP]{badgerStore: badgerStore{
+	return &storeBinaryKey[K, V, KP]{badgerStore: badgerStore[V]{
 		DB:      db,
 		Options: opts,
 	}}, nil
 }
 
 type storeBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]] struct {
-	badgerStore
+	badgerStore[V]
 }
 
 // Get implements Store.
@@ -116,7 +116,7 @@ func (s *storeBinaryKey[K, V, KP]) Transaction(update bool) (kv.Store[K, V], err
 
 type transactionBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]] struct {
 	txn *badger.Txn
-	badgerStore
+	badgerStore[V]
 }
 
 func (t *transactionBinaryKey[K, V, KP]) Close(ctx context.Context) error {

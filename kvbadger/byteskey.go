@@ -7,20 +7,20 @@ import (
 	"github.com/royalcat/kv"
 )
 
-func NewBadgerKVBytesKey[K kv.Bytes, V any](opts Options) (kv.Store[K, V], error) {
+func NewBadgerKVBytesKey[K kv.Bytes, V any](opts Options[V]) (kv.Store[K, V], error) {
 	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return &storeBytesKey[K, V]{badgerStore: badgerStore{
+	return &storeBytesKey[K, V]{badgerStore: badgerStore[V]{
 		DB:      db,
 		Options: opts,
 	}}, nil
 }
 
 type storeBytesKey[K kv.Bytes, V any] struct {
-	badgerStore
+	badgerStore[V]
 }
 
 func (s *storeBytesKey[K, V]) Set(ctx context.Context, k K, v V) error {
@@ -102,7 +102,7 @@ func (s *storeBytesKey[K, V]) Transaction(update bool) (kv.Store[K, V], error) {
 
 type transactionBytesKey[K kv.Bytes, V any] struct {
 	tx *badger.Txn
-	badgerStore
+	badgerStore[V]
 }
 
 var _ kv.Store[string, string] = (*transactionBytesKey[string, string])(nil)
