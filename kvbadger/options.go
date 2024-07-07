@@ -15,7 +15,7 @@ type Options[V any] struct {
 
 func DefaultOptions[V any](dir string) Options[V] {
 	return Options[V]{
-		Codec:         kv.JSONCodec[V]{},
+		Codec:         kv.CodecJSON[V]{},
 		BadgerOptions: badger.DefaultOptions(dir),
 	}
 }

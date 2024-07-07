@@ -12,7 +12,7 @@ func NewBadgerKVBytes[K, V kv.Bytes](opts Options[V]) (kv.Store[K, V], error) {
 	if err != nil {
 		return nil, err
 	}
-	opts.Codec = kv.BytesCodec[V]{}
+	opts.Codec = kv.CodecBytes[V]{}
 	return &storeBytes[K, V]{badgerStore: badgerStore[V]{
 		DB:      db,
 		Options: opts,
