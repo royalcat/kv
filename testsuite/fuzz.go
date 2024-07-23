@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func FuzzPrefixBytes(t *testing.F, newKV StoreConstructor) {
+func FuzzPrefixBytes(t *testing.F, newKV StoreConstructor[string, string]) {
 	ctx := context.Background()
 
 	t.Add("prefix/", "key", "value")

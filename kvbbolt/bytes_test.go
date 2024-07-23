@@ -23,5 +23,5 @@ func newKV(tempDir func() string) func() (kv.Store[string, string], error) {
 
 func TestGolden(t *testing.T) {
 	t.Parallel()
-	testsuite.Golden(t, newKV(t.TempDir))
+	testsuite.GoldenStrings(t, newKV(t.TempDir))
 }

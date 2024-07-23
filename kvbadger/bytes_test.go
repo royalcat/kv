@@ -8,16 +8,26 @@ import (
 	"github.com/royalcat/kv/testsuite"
 )
 
-func newMemory() (kv.Store[string, string], error) {
-	opts := kvbadger.DefaultOptions[string]("")
+func newMemoryBytes[V any]() (kv.Store[string, V], error) {
+	opts := kvbadger.DefaultOptions[V]("")
 	opts.BadgerOptions.InMemory = true
-	return kvbadger.NewBadgerKVBytes[string, string](opts)
+	return kvbadger.New[string, V](opts)
+}
+
+func newMemoryObjects[V any]() (kv.Store[string, V], error) {
+	opts := kvbadger.DefaultOptions[V]("")
+	opts.BadgerOptions.InMemory = true
+	return kvbadger.New[string, V](opts)
 }
 
 func TestGolden(t *testing.T) {
-	testsuite.Golden(t, newMemory)
+	testsuite.GoldenStrings(t, newMemoryBytes)
 }
 
 func FuzzPrefixBytes(t *testing.F) {
-	testsuite.FuzzPrefixBytes(t, newMemory)
+	testsuite.FuzzPrefixBytes(t, newMemoryBytes)
+}
+
+func TestGoldenObjects(t *testing.T) {
+	testsuite.GoldenObjects(t, newMemoryObjects)
 }

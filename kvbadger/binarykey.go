@@ -8,7 +8,7 @@ import (
 	"github.com/royalcat/kv"
 )
 
-func NewBagerKVBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](opts Options[V]) (kv.Store[K, V], error) {
+func NewBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](opts Options[V]) (kv.Store[K, V], error) {
 	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err

@@ -7,24 +7,24 @@ import (
 	"github.com/royalcat/kv"
 )
 
-func NewBadgerKVBytes[K, V kv.Bytes](opts Options[V]) (kv.Store[K, V], error) {
+func NewRaw[K, V kv.Bytes](opts Options[V]) (*StoreRaw[K, V], error) {
 	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err
 	}
 	opts.Codec = kv.CodecBytes[V]{}
-	return &storeBytes[K, V]{badgerStore: badgerStore[V]{
+	return &StoreRaw[K, V]{badgerStore: badgerStore[V]{
 		DB:      db,
 		Options: opts,
 	}}, nil
 }
 
-type storeBytes[K, V kv.Bytes] struct {
+type StoreRaw[K, V kv.Bytes] struct {
 	badgerStore[V]
 }
 
 // Get implements Store.
-func (s *storeBytes[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+func (s *StoreRaw[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
 	kb := []byte(k)
 
 	return s.DB.Update(func(txn *badger.Txn) error {
@@ -40,13 +40,13 @@ func (s *storeBytes[K, V]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error
 	})
 }
 
-func (s *storeBytes[K, V]) Set(ctx context.Context, k K, v V) error {
+func (s *StoreRaw[K, V]) Set(ctx context.Context, k K, v V) error {
 	return s.DB.Update(func(txn *badger.Txn) error {
 		return txSet[V](txn, []byte(k), V(v), s.Options)
 	})
 }
 
-func (s *storeBytes[K, V]) Get(ctx context.Context, k K) (v V, err error) {
+func (s *StoreRaw[K, V]) Get(ctx context.Context, k K) (v V, err error) {
 	err = s.DB.View(func(txn *badger.Txn) error {
 		v, err = txGet[V](txn, []byte(k), s.Options)
 		return err
@@ -54,21 +54,21 @@ func (s *storeBytes[K, V]) Get(ctx context.Context, k K) (v V, err error) {
 	return v, err
 }
 
-func (s *storeBytes[K, V]) Delete(ctx context.Context, k K) error {
+func (s *StoreRaw[K, V]) Delete(ctx context.Context, k K) error {
 	return s.DB.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(k))
 	})
 }
 
-func (s *storeBytes[K, V]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
+func (s *StoreRaw[K, V]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
 	return s.RangeWithOptions(ctx, prefixOptions([]byte(k)), iter)
 }
 
-func (s *storeBytes[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
+func (s *StoreRaw[K, V]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
 	return s.RangeWithOptions(ctx, badger.DefaultIteratorOptions, iter)
 }
 
-func (s *storeBytes[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
+func (s *StoreRaw[K, V]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
 	return s.DB.View(func(txn *badger.Txn) error {
 		return txRange[V](ctx, txn, opt, s.Options, func(k []byte, v V) error {
 			return iter(K(k), v)
@@ -76,9 +76,9 @@ func (s *storeBytes[K, V]) RangeWithOptions(ctx context.Context, opt badger.Iter
 	})
 }
 
-var _ kv.TransactionalStore[string, string] = (*storeBytes[string, string])(nil)
+var _ kv.TransactionalStore[string, string] = (*StoreRaw[string, string])(nil)
 
-func (s *storeBytes[K, V]) Transaction(update bool) (kv.Store[K, V], error) {
+func (s *StoreRaw[K, V]) Transaction(update bool) (kv.Store[K, V], error) {
 	tx := s.DB.NewTransaction(update)
 	return &transactionBytes[K, V]{
 		tx: tx,

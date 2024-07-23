@@ -10,16 +10,29 @@ import (
 	"github.com/royalcat/kv"
 )
 
-func NewEmbedded[V any](db *olric.Olric, bucket string) (kv.Store[string, V], error) {
+func DefaultOptions[V any]() Options[V] {
+	return Options[V]{
+		Codec: kv.CodecJSON[V]{},
+	}
+}
+
+func NewEmbedded[V any](db *olric.Olric, bucket string, opts Options[V]) (kv.Store[string, V], error) {
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap(bucket)
 	if err != nil {
 		log.Fatalf("olric.NewDMap returned an error: %v", err)
 	}
 
+	locks, err := e.NewDMap(bucket + "_locks")
+	if err != nil {
+		log.Fatalf("olric.NewDMap returned an error: %v", err)
+	}
+
 	return &embedded[V]{
-		c:  e,
-		dm: dm,
+		c:       e,
+		dm:      dm,
+		locks:   locks,
+		Options: opts,
 	}, nil
 
 }
@@ -30,8 +43,9 @@ type Options[V any] struct {
 
 type embedded[V any] struct {
 	Options[V]
-	c  *olric.EmbeddedClient
-	dm olric.DMap
+	c     *olric.EmbeddedClient
+	dm    olric.DMap
+	locks olric.DMap
 }
 
 var _ kv.Store[string, struct{}] = (*embedded[struct{}])(nil)
@@ -66,7 +80,7 @@ const editTimeout = 10 * time.Second
 
 // Get implements kv.Store.
 func (s *embedded[V]) Edit(ctx context.Context, k string, edit kv.Edit[V]) error {
-	lc, err := s.dm.Lock(ctx, k, editTimeout)
+	lc, err := s.locks.LockWithTimeout(ctx, k, editTimeout, editTimeout)
 	if err != nil {
 		return err
 	}

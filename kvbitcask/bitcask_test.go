@@ -10,7 +10,7 @@ import (
 )
 
 func TestGolden(t *testing.T) {
-	testsuite.Golden(t, func() (kv.Store[string, string], error) {
+	testsuite.GoldenStrings(t, func() (kv.Store[string, string], error) {
 		return kvbitcask.New[string, string](path.Join(t.TempDir(), "bitcask"))
 	})
 }

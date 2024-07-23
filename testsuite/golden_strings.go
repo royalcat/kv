@@ -8,20 +8,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type StoreConstructor func() (kv.Store[string, string], error)
+type StoreConstructor[K, V any] func() (kv.Store[K, V], error)
 
-func Golden(t *testing.T, newKV StoreConstructor) {
+func GoldenStrings(t *testing.T, newKV StoreConstructor[string, string]) {
 	ctx := context.Background()
 	t.Run("Set Get", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		store, err := newKV()
 		require.NoError(err)
 
 		testSetGet(t, ctx, store, "key", "value")
 	})
+	t.Run("Range", func(t *testing.T) {
+		require := require.New(t)
+		store, err := newKV()
+		require.NoError(err)
+
+		testRange(t, ctx, store)
+	})
 	t.Run("Prefix", func(t *testing.T) {
-		t.Parallel()
 		require := require.New(t)
 		store, err := newKV()
 		require.NoError(err)
@@ -30,13 +35,39 @@ func Golden(t *testing.T, newKV StoreConstructor) {
 	})
 }
 
-func testSetGet(t *testing.T, ctx context.Context, store kv.Store[string, string], key, value string) {
+func testRange(t *testing.T, ctx context.Context, store kv.Store[string, string]) {
 	require := require.New(t)
 
-	err := store.Set(ctx, key, value)
+	expectedVals := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": "value3",
+	}
+	for k, v := range expectedVals {
+		err := store.Set(ctx, k, v)
+		require.NoError(err)
+	}
+
+	vals := map[string]string{}
+	err := store.Range(ctx, func(k, v string) error {
+		vals[k] = v
+		return nil
+	})
 	require.NoError(err)
 
+	require.Equal(expectedVals, vals)
+}
+
+func testSetGet[K, V any](t *testing.T, ctx context.Context, store kv.Store[K, V], key K, value V) {
+	require := require.New(t)
+
 	v, err := store.Get(ctx, key)
+	require.Error(err, kv.ErrKeyNotFound)
+
+	err = store.Set(ctx, key, value)
+	require.NoError(err)
+
+	v, err = store.Get(ctx, key)
 	require.NoError(err)
 	require.Equal(value, v)
 }

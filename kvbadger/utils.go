@@ -2,10 +2,23 @@ package kvbadger
 
 import (
 	"context"
+	"encoding"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/royalcat/kv"
 )
+
+type binaryPointer[T any] interface {
+	*T
+	kv.Binary
+}
+
+func unmarshalKey[K encoding.BinaryMarshaler, KP binaryPointer[K]](data []byte) (K, error) {
+	var k K
+	kp := KP(&k)
+	err := kp.UnmarshalBinary(data)
+	return k, err
+}
 
 func txGet[V any](txn *badger.Txn, k []byte, opts Options[V]) (V, error) {
 	var v V
