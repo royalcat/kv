@@ -5,9 +5,8 @@ jobs:
     name: Go test coverage check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
       - name: generate test coverage
         run: go test github.com/royalcat/kv/... -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
 
