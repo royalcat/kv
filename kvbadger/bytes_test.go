@@ -5,8 +5,18 @@ import (
 	"testing"
 
 	"github.com/royalcat/kv/kvbadger"
+	"github.com/royalcat/kv/testsuite"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGeneral(t *testing.T) {
+	require := require.New(t)
+	opts := kvbadger.DefaultOptions[string]("")
+	opts.BadgerOptions.InMemory = true
+	store, err := kvbadger.NewBadgerKVBytes[string, string](opts)
+	require.NoError(err)
+	testsuite.Golden(t, store)
+}
 
 func TestBytesStore(t *testing.T) {
 	t.Run("String value", func(t *testing.T) {

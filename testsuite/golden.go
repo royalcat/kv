@@ -1,27 +1,38 @@
-package kv_test
+package testsuite
 
 import (
 	"context"
 	"testing"
 
 	"github.com/royalcat/kv"
-	"github.com/royalcat/kv/kvmemory"
+	"github.com/stretchr/testify/require"
 )
 
-func FuzzPrefixBytes(t *testing.F) {
-	t.Add("prefix/", "key", "value")
-	t.Add("prefix-", "123", "456")
-	t.Add("prefix_", "abc", "xyz")
-	t.Add(string("0"), string("\xff"), string("0"))
+func Golden(t *testing.T, store kv.Store[string, string]) {
+	ctx := context.Background()
+	t.Run("Set Get", func(t *testing.T) {
+		testSetGet(t, store, ctx, "key", "value")
+	})
+	t.Run("Prefix", func(t *testing.T) {
+		testPrefixBytes(t, store, "prefix", "key", "value")
+	})
+}
 
-	t.Fuzz(testPrefixBytes)
+func testSetGet(t *testing.T, store kv.Store[string, string], ctx context.Context, key, value string) {
+	require := require.New(t)
+
+	err := store.Set(ctx, key, value)
+	require.NoError(err)
+
+	v, err := store.Get(ctx, key)
+	require.NoError(err)
+	require.Equal(value, v)
 }
 
 const editSuffix = "!"
 
-func testPrefixBytes(t *testing.T, prefix, key, value string) {
-	m := kvmemory.NewMemoryKV[string, string]()
-	pm := kv.PrefixBytes[string, string](m, prefix)
+func testPrefixBytes(t *testing.T, store kv.Store[string, string], prefix, key, value string) {
+	pm := kv.PrefixBytes[string, string](store, prefix)
 	ctx := context.Background()
 
 	err := pm.Set(ctx, key, value)
@@ -29,7 +40,7 @@ func testPrefixBytes(t *testing.T, prefix, key, value string) {
 		t.Fatal(err)
 	}
 
-	val, err := m.Get(ctx, prefix+key)
+	val, err := store.Get(ctx, prefix+key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +145,7 @@ func testPrefixBytes(t *testing.T, prefix, key, value string) {
 		t.Fatal(err)
 	}
 
-	err = m.Close(ctx)
+	err = store.Close(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
