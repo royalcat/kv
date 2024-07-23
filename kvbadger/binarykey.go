@@ -8,23 +8,23 @@ import (
 	"github.com/royalcat/kv"
 )
 
-func NewBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](opts Options[V]) (kv.Store[K, V], error) {
+func NewBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]](opts Options[V]) (*StoreBinaryKey[K, V, KP], error) {
 	db, err := badger.Open(opts.BadgerOptions)
 	if err != nil {
 		return nil, err
 	}
-	return &storeBinaryKey[K, V, KP]{badgerStore: badgerStore[V]{
+	return &StoreBinaryKey[K, V, KP]{badgerStore: badgerStore[V]{
 		DB:      db,
 		Options: opts,
 	}}, nil
 }
 
-type storeBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]] struct {
+type StoreBinaryKey[K encoding.BinaryMarshaler, V any, KP binaryPointer[K]] struct {
 	badgerStore[V]
 }
 
 // Get implements Store.
-func (s *storeBinaryKey[K, V, KP]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
+func (s *StoreBinaryKey[K, V, KP]) Edit(ctx context.Context, k K, edit kv.Edit[V]) error {
 	kb, err := k.MarshalBinary()
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func (s *storeBinaryKey[K, V, KP]) Edit(ctx context.Context, k K, edit kv.Edit[V
 	})
 }
 
-func (s *storeBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) error {
+func (s *StoreBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) error {
 	kb, err := k.MarshalBinary()
 	if err != nil {
 		return err
@@ -54,7 +54,7 @@ func (s *storeBinaryKey[K, V, KP]) Set(ctx context.Context, k K, v V) error {
 	})
 }
 
-func (s *storeBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (V, error) {
+func (s *StoreBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (V, error) {
 	var v V
 	kb, err := k.MarshalBinary()
 	if err != nil {
@@ -68,7 +68,7 @@ func (s *storeBinaryKey[K, V, KP]) Get(ctx context.Context, k K) (V, error) {
 	return v, err
 }
 
-func (s *storeBinaryKey[K, V, KP]) Delete(ctx context.Context, k K) error {
+func (s *StoreBinaryKey[K, V, KP]) Delete(ctx context.Context, k K) error {
 	kb, err := k.MarshalBinary()
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func (s *storeBinaryKey[K, V, KP]) Delete(ctx context.Context, k K) error {
 	})
 }
 
-func (s *storeBinaryKey[K, V, KP]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
+func (s *StoreBinaryKey[K, V, KP]) RangeWithPrefix(ctx context.Context, k K, iter kv.Iter[K, V]) error {
 	p, err := k.MarshalBinary()
 	if err != nil {
 		return err
@@ -88,11 +88,11 @@ func (s *storeBinaryKey[K, V, KP]) RangeWithPrefix(ctx context.Context, k K, ite
 	return s.RangeWithOptions(ctx, prefixOptions([]byte(p)), iter)
 }
 
-func (s *storeBinaryKey[K, V, KP]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
+func (s *StoreBinaryKey[K, V, KP]) Range(ctx context.Context, iter kv.Iter[K, V]) error {
 	return s.RangeWithOptions(ctx, badger.DefaultIteratorOptions, iter)
 }
 
-func (s *storeBinaryKey[K, V, KP]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
+func (s *StoreBinaryKey[K, V, KP]) RangeWithOptions(ctx context.Context, opt badger.IteratorOptions, iter kv.Iter[K, V]) error {
 	return s.DB.View(func(txn *badger.Txn) error {
 		return txRange[V](ctx, txn, opt, s.Options, func(k []byte, v V) error {
 			var key K
@@ -107,7 +107,7 @@ func (s *storeBinaryKey[K, V, KP]) RangeWithOptions(ctx context.Context, opt bad
 	})
 }
 
-func (s *storeBinaryKey[K, V, KP]) Transaction(update bool) (kv.Store[K, V], error) {
+func (s *StoreBinaryKey[K, V, KP]) Transaction(update bool) (kv.Store[K, V], error) {
 	tx := s.DB.NewTransaction(update)
 	return &transactionBinaryKey[K, V, KP]{
 		txn: tx,

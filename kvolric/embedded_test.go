@@ -12,7 +12,7 @@ import (
 	"github.com/royalcat/kv/testsuite"
 )
 
-func newStore() (kv.Store[string, string], error) {
+func newDB() (*olric.Olric, error) {
 	c := config.New("local")
 	c.BindPort = 10000 + rand.Int()%10000
 	c.MemberlistConfig.BindPort = 10000 + rand.Int()%10000
@@ -40,6 +40,14 @@ func newStore() (kv.Store[string, string], error) {
 
 	<-started
 
+	return db, nil
+}
+
+func newStore() (kv.Store[string, string], error) {
+	db, err := newDB()
+	if err != nil {
+		return nil, err
+	}
 	opts := kvolric.DefaultOptions[string]()
 	opts.Codec = kv.CodecBytes[string]{}
 	return kvolric.NewEmbedded(db, "test", opts)

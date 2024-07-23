@@ -9,7 +9,7 @@ import (
 	"github.com/royalcat/kv"
 )
 
-type locks struct {
+type Locks struct {
 	defaultTimeout time.Duration
 
 	dm olric.DMap
@@ -18,18 +18,18 @@ type locks struct {
 	locks map[string]olric.LockContext
 }
 
-func NewLocks(dm olric.DMap, defaultTimeout time.Duration) *locks {
-	return &locks{
+func NewLocks(dm olric.DMap, defaultTimeout time.Duration) *Locks {
+	return &Locks{
 		defaultTimeout: defaultTimeout,
 		dm:             dm,
 		locks:          map[string]olric.LockContext{},
 	}
 }
 
-var _ kv.Locks[string] = (*locks)(nil)
+var _ kv.Locks[string] = (*Locks)(nil)
 
 // Lock implements kv.Locks.
-func (l *locks) Lock(ctx context.Context, key string) error {
+func (l *Locks) Lock(ctx context.Context, key string) error {
 	timeout := l.defaultTimeout
 
 	if deadline, ok := ctx.Deadline(); ok {
@@ -45,7 +45,7 @@ func (l *locks) Lock(ctx context.Context, key string) error {
 }
 
 // Unlock implements kv.Locks.
-func (l *locks) Unlock(ctx context.Context, key string) error {
+func (l *Locks) Unlock(ctx context.Context, key string) error {
 	l.mlock.Lock()
 	lc, ok := l.locks[key]
 	if !ok {
@@ -58,7 +58,7 @@ func (l *locks) Unlock(ctx context.Context, key string) error {
 	return lc.Unlock(ctx)
 }
 
-func (l *locks) Close(ctx context.Context) error {
+func (l *Locks) Close(ctx context.Context) error {
 	l.mlock.Lock()
 	defer l.mlock.Unlock()
 

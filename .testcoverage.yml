@@ -1,6 +1,5 @@
 profile: cover.out
 local-prefix: "github.com/royalcat/kv"
-
 exclude:
   paths:
-    - ^testsuite # exclude package `pkg/bar`
+    - ^testsuite
