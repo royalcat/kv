@@ -8,17 +8,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Golden(t *testing.T, store kv.Store[string, string]) {
+type StoreConstructor func() (kv.Store[string, string], error)
+
+func Golden(t *testing.T, newKV StoreConstructor) {
 	ctx := context.Background()
 	t.Run("Set Get", func(t *testing.T) {
-		testSetGet(t, store, ctx, "key", "value")
+		require := require.New(t)
+		store, err := newKV()
+		require.NoError(err)
+
+		testSetGet(t, ctx, store, "key", "value")
 	})
 	t.Run("Prefix", func(t *testing.T) {
-		testPrefixBytes(t, store, "prefix", "key", "value")
+		require := require.New(t)
+		store, err := newKV()
+		require.NoError(err)
+
+		testPrefixBytes(t, ctx, store, "prefix", "key", "value")
 	})
 }
 
-func testSetGet(t *testing.T, store kv.Store[string, string], ctx context.Context, key, value string) {
+func testSetGet(t *testing.T, ctx context.Context, store kv.Store[string, string], key, value string) {
 	require := require.New(t)
 
 	err := store.Set(ctx, key, value)
@@ -31,9 +41,8 @@ func testSetGet(t *testing.T, store kv.Store[string, string], ctx context.Contex
 
 const editSuffix = "!"
 
-func testPrefixBytes(t *testing.T, store kv.Store[string, string], prefix, key, value string) {
+func testPrefixBytes(t *testing.T, ctx context.Context, store kv.Store[string, string], prefix, key, value string) {
 	pm := kv.PrefixBytes[string, string](store, prefix)
-	ctx := context.Background()
 
 	err := pm.Set(ctx, key, value)
 	if err != nil {
