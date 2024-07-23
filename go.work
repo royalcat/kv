@@ -1,0 +1,10 @@
+go 1.22.5
+
+use (
+	.
+	./kvbadger
+	./kvbitcask
+	./kvmemory
+	./kvolric
+	./testsuite
+)
