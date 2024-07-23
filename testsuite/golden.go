@@ -13,6 +13,7 @@ type StoreConstructor func() (kv.Store[string, string], error)
 func Golden(t *testing.T, newKV StoreConstructor) {
 	ctx := context.Background()
 	t.Run("Set Get", func(t *testing.T) {
+		t.Parallel()
 		require := require.New(t)
 		store, err := newKV()
 		require.NoError(err)
@@ -20,6 +21,7 @@ func Golden(t *testing.T, newKV StoreConstructor) {
 		testSetGet(t, ctx, store, "key", "value")
 	})
 	t.Run("Prefix", func(t *testing.T) {
+		t.Parallel()
 		require := require.New(t)
 		store, err := newKV()
 		require.NoError(err)
