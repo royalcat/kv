@@ -1,0 +1,21 @@
+name: Test coverage
+on: [push, pull_request]
+jobs:
+  coverage:
+    name: Go test coverage check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+
+      - name: generate test coverage
+        run: go test github.com/royalcat/kv/... -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
+
+      - name: check test coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          profile: cover.out
+          local-prefix: github.com/royalcat/kv
+          threshold-file: 80
+          threshold-package: 80
+          threshold-total: 95
